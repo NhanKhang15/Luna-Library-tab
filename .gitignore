@@ -1,0 +1,11 @@
+.agent/
+.DS_Store
+venv/
+__pycache__/
+*.sqlite3
+.env
+.idea/
+.vscode/
+
+# Flutter build artifacts
+build/

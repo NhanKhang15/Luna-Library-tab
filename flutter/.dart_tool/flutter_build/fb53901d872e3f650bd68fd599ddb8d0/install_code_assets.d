@@ -1,0 +1,1 @@
+ E:\\app_kinh_nguyet_thu_vien\\flutter\\.dart_tool\\flutter_build\\fb53901d872e3f650bd68fd599ddb8d0\\native_assets.json: 

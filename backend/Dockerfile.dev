@@ -1,0 +1,25 @@
+# Development Dockerfile for C# Backend
+FROM mcr.microsoft.com/dotnet/sdk:8.0
+
+WORKDIR /src
+
+# Copy project file
+COPY ["backend.csproj", "./"]
+
+# Restore dependencies
+RUN dotnet restore "backend.csproj"
+
+# Copy source code
+COPY . .
+
+# Install additional tools
+RUN dotnet tool install -g dotnet-ef
+
+ENV PATH="${PATH}:/root/.dotnet/tools"
+
+# Expose ports
+EXPOSE 5000
+EXPOSE 5001
+
+# Run with hot reload
+ENTRYPOINT ["dotnet", "watch", "run", "--urls", "http://0.0.0.0:5000"]

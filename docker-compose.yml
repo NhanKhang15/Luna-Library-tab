@@ -1,0 +1,101 @@
+services:
+  # SQL Server Database
+  mssql:
+    image: mcr.microsoft.com/azure-sql-edge:latest
+    environment:
+      ACCEPT_EULA: "1"
+      SA_PASSWORD: "YourSecurePassword123!"
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql_data:/var/opt/mssql
+    healthcheck:
+      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "YourSecurePassword123!" -Q "SELECT 1" || exit 1
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - app-network
+
+  # C# Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+      - "5001:5001"
+    environment:
+      ASPNETCORE_URLS: http://+:5000;https://+:5001
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: "Server=mssql;Database=Floria_2;User Id=sa;Password=YourSecurePassword123!;TrustServerCertificate=True;"
+      Jwt__Issuer: "FloriaAPI"
+      Jwt__Audience: "FloriaApp"
+      Jwt__Key: "floria-super-secure-secret-key-min-32-chars-2024!"
+    depends_on:
+      mssql:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # Python Backend (Django + FastAPI)
+  backend-py:
+    build:
+      context: ./backend_py
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+      - "8001:8001"
+    environment:
+      DEBUG: "False"
+      ALLOWED_HOSTS: "localhost,127.0.0.1,backend-py"
+      DATABASE_URL: "mssql+pyodbc://sa:YourSecurePassword123!@mssql:1433/Floria_2?driver=ODBC+Driver+17+for+SQL+Server&TrustServerCertificate=yes"
+      SECRET_KEY: "your-secret-key-change-in-production"
+      JWT_SECRET: "floria-super-secure-secret-key-min-32-chars-2024!"
+    depends_on:
+      mssql:
+        condition: service_healthy
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # Flutter Web Frontend
+  frontend-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    ports:
+      - "80:80"
+    environment:
+      API_BASE_URL: "http://backend:5000"
+    depends_on:
+      - backend
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # Optional: Redis Cache
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - app-network
+    restart: unless-stopped
+
+volumes:
+  mssql_data:
+  redis_data:
+
+networks:
+  app-network:
+    driver: bridge

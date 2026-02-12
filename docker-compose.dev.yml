@@ -1,0 +1,74 @@
+services:
+  # SQL Server Database
+  mssql:
+    image: mcr.microsoft.com/azure-sql-edge:latest
+    environment:
+      ACCEPT_EULA: "1"
+      SA_PASSWORD: "sa123456"
+    ports:
+      - "1433:1433"
+    volumes:
+      - mssql_dev_data:/var/opt/mssql
+    networks:
+      - app-network
+
+  # C# Backend API (Development)
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.dev
+    ports:
+      - "5000:5000"
+      - "5001:5001"
+    environment:
+      ASPNETCORE_URLS: http://+:5000
+      ASPNETCORE_ENVIRONMENT: Development
+      ConnectionStrings__DefaultConnection: "Server=mssql;Database=Floria_2;User Id=sa;Password=sa123456;TrustServerCertificate=True;"
+      Jwt__Issuer: "FloriaAPI"
+      Jwt__Audience: "FloriaApp"
+      Jwt__Key: "floria-super-secure-secret-key-min-32-chars-2024!"
+    volumes:
+      - ./backend:/src
+    depends_on:
+      - mssql
+    networks:
+      - app-network
+
+  # Python Backend (Development)
+  backend-py:
+    build:
+      context: ./backend_py
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      DEBUG: "True"
+      ALLOWED_HOSTS: "localhost,127.0.0.1,backend-py"
+      DATABASE_URL: "mssql+pyodbc://sa:sa123456@mssql:1433/Floria_2?driver=ODBC+Driver+17+for+SQL+Server&TrustServerCertificate=yes"
+      SECRET_KEY: "dev-secret-key"
+      JWT_SECRET: "floria-super-secure-secret-key-min-32-chars-2024!"
+    volumes:
+      - ./backend_py:/app
+    depends_on:
+      - mssql
+    command: python manage.py runserver 0.0.0.0:8000
+    networks:
+      - app-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    networks:
+      - app-network
+
+volumes:
+  mssql_dev_data:
+  redis_dev_data:
+
+networks:
+  app-network:
+    driver: bridge
