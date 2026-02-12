@@ -1,0 +1,80 @@
+services:
+  # 1. Django Backend (Core App) - Port 8000
+  backend-core:
+    build:
+      context: ./backend_py
+      dockerfile: Dockerfile
+    command: python manage.py runserver 0.0.0.0:8000
+    ports:
+      - "8000:8000"
+    environment:
+      DEBUG: "False"
+      ALLOWED_HOSTS: "*"
+      # Connect to HOST machine's SQL Server via host.docker.internal
+      DATABASE_URL: "mssql+pyodbc://sa:1234567@host.docker.internal:1433/Floria_2?driver=ODBC+Driver+17+for+SQL+Server&TrustServerCertificate=yes"
+      SECRET_KEY: "your-secret-key-change-in-production"
+      JWT_SECRET: "K2z9Xn4pQa7wLm0dR8s1Yc5vUf3hJt6B"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # 2. FastAPI Auth Service - Port 8001
+  backend-auth:
+    build:
+      context: ./backend_py
+      dockerfile: Dockerfile
+    command: uvicorn services.auth.main:app --host 0.0.0.0 --port 8001
+    ports:
+      - "8001:8001"
+    environment:
+      DEBUG: "False"
+      # Connect to HOST machine's SQL Server
+      DATABASE_URL: "mssql+pyodbc://sa:1234567@host.docker.internal:1433/Floria_2?driver=ODBC+Driver+17+for+SQL+Server&TrustServerCertificate=yes"
+      JWT_SECRET: "K2z9Xn4pQa7wLm0dR8s1Yc5vUf3hJt6B"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # 3. FastAPI Service Layer (Search/Analytics) - Port 8002
+  backend-service:
+    build:
+      context: ./backend_py
+      dockerfile: Dockerfile
+    command: uvicorn services.main:app --host 0.0.0.0 --port 8002
+    ports:
+      - "8002:8002"
+    environment:
+      DEBUG: "False"
+      # Environment variables for service layer connection
+      DB_HOST: "host.docker.internal"
+      DB_NAME: "Floria_2"
+      DB_USER: "sa"
+      DB_PASSWORD: "1234567"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - app-network
+    restart: unless-stopped
+
+  # 4. Flutter Web Frontend - Port 80
+  frontend-web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend-core
+      - backend-auth
+      - backend-service
+    networks:
+      - app-network
+    restart: unless-stopped
+
+networks:
+  app-network:
+    driver: bridge
